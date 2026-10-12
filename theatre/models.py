@@ -61,7 +61,11 @@ class Reservation(models.Model):
 class Ticket(models.Model):
     row = models.IntegerField()
     seat = models.IntegerField()
-    performance = models.ForeignKey(Performance, on_delete=models.CASCADE)
+    performance = models.ForeignKey(
+        Performance,
+        on_delete=models.CASCADE,
+        related_name="tickets",
+    )
     reservation = models.ForeignKey(
         Reservation,
         on_delete=models.CASCADE,
