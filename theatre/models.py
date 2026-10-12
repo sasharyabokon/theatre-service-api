@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from django.contrib.auth.models import User
 
@@ -39,7 +40,7 @@ class TheatreHall(models.Model):
 class Performance(models.Model):
     play = models.ForeignKey(Play, on_delete=models.CASCADE)
     theatre_hall = models.ForeignKey(TheatreHall, on_delete=models.CASCADE)
-    showtime= models.DateTimeField()
+    show_time= models.DateTimeField()
 
     def __str__(self):
         return self.play.title
@@ -47,7 +48,7 @@ class Performance(models.Model):
 
 class Reservation(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
 
     def __str__(self):
         return f"{self.user.username} {self.created_at}"
