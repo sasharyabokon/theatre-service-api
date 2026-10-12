@@ -1,5 +1,6 @@
 from django.db import transaction
 from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
 
 from theatre.models import Actor, Genre, Play, TheatreHall, Performance, Reservation, Ticket
 
@@ -23,6 +24,12 @@ class PlaySerializer(serializers.ModelSerializer):
     class Meta:
         model = Play
         fields = ("id", "title","description", "actor", "genre")
+
+
+class PlayImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Play
+        fields = ("id", "image")
 
 
 class PlayListSerializer(PlaySerializer):
@@ -69,6 +76,16 @@ class PerformanceListSerializer(PerformanceSerializer):
 
 
 class TicketSerializer(serializers.ModelSerializer):
+    def validate(self, attrs):
+        data = super(TicketSerializer, self).validate(attrs=attrs)
+        Ticket.validate_ticket(
+            attrs["row"],
+            attrs["seat"],
+            attrs["performance"].theatre_hall,
+            ValidationError
+        )
+        return data
+
 
     class Meta:
         model = Ticket
