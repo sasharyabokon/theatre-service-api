@@ -24,9 +24,11 @@ from theatre.serializers import (
     TheatreHallSerializer,
     PerformanceSerializer,
     ReservationSerializer,
-    TicketSerializer,
     PlayListSerializer,
-    PlayDetailSerializer, PerformanceListSerializer, PerformanceDetailSerializer, ReservationListSerializer,
+    PlayDetailSerializer,
+    PerformanceListSerializer,
+    PerformanceDetailSerializer,
+    ReservationListSerializer,
     PlayImageSerializer
 )
 
@@ -36,14 +38,16 @@ class GenreViewSet(viewsets.ModelViewSet):
     serializer_class = GenreSerializer
     permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
 
+
 class ActorViewSet(viewsets.ModelViewSet):
     queryset = Actor.objects.all()
     serializer_class = ActorSerializer
     permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
 
+
 class PlayViewSet(viewsets.ModelViewSet):
     queryset = Play.objects.prefetch_related(
-        "genre", "actor"
+        "genres", "actors"
     )
     serializer_class = PlaySerializer
     permission_classes = (IsAdminOrIfAuthenticatedReadOnly,)
@@ -63,14 +67,13 @@ class PlayViewSet(viewsets.ModelViewSet):
         if title:
             queryset = queryset.filter(title__icontains=title)
         if genres:
-            genre_ids = self._params_to_ints(genres)
-            queryset = queryset.filter(genre_id__in=genre_ids)
+            genres_ids = self._params_to_ints(genres)
+            queryset = queryset.filter(genres__id__in=genres_ids)
         if actors:
-            actor_ids = self._params_to_ints(actors)
-            queryset = queryset.filter(actor_id__in=actor_ids)
+            actors_ids = self._params_to_ints(actors)
+            queryset = queryset.filter(actors__id__in=actors_ids)
 
         return queryset.distinct()
-
 
     def get_serializer_class(self):
         if self.action == "list":
@@ -133,7 +136,7 @@ class PerformanceViewSet(viewsets.ModelViewSet):
         annotate(
             tickets_available=(
                 F("theatre_hall__rows") * F("theatre_hall__seats_in_row")
-                 - Count("tickets")
+                - Count("tickets")
             )
         )
     )

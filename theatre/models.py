@@ -1,7 +1,7 @@
 import os
+import uuid
 from django.conf import settings
 from django.db import models
-from django.db.models.functions import uuid
 from django.utils.text import slugify
 
 
@@ -33,8 +33,8 @@ def play_image_file_path(instance, filename):
 class Play(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField()
-    actor = models.ManyToManyField(Actor, blank=True)
-    genre = models.ManyToManyField(Genre, blank=True)
+    actors = models.ManyToManyField(Actor, blank=True)
+    genres = models.ManyToManyField(Genre, blank=True)
     image = models.ImageField(null=True, upload_to=play_image_file_path)
 
     def __str__(self):
@@ -53,7 +53,7 @@ class TheatreHall(models.Model):
 class Performance(models.Model):
     play = models.ForeignKey(Play, on_delete=models.CASCADE)
     theatre_hall = models.ForeignKey(TheatreHall, on_delete=models.CASCADE)
-    show_time= models.DateTimeField()
+    show_time = models.DateTimeField()
 
     def __str__(self):
         return self.play.title
@@ -61,7 +61,10 @@ class Performance(models.Model):
 
 class Reservation(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE
+    )
 
     def __str__(self):
         return f"{self.user.username} {self.created_at}"
