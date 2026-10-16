@@ -91,19 +91,29 @@ class PerformanceListSerializer(PerformanceSerializer):
 
 
 class TicketSerializer(serializers.ModelSerializer):
-    def validate(self, attrs):
-        data = super(TicketSerializer, self).validate(attrs=attrs)
-        Ticket.validate_ticket(
-            attrs["row"],
-            attrs["seat"],
-            attrs["performance"].theatre_hall,
-            ValidationError
-        )
-        return data
 
     class Meta:
         model = Ticket
         fields = ("id", "row", "seat", "performance", "reservation")
+        extra_kwargs = {
+            "reservation": {"read_only": True}
+        }
+
+    def validate(self, attrs):
+        data = super(TicketSerializer, self).validate(attrs=attrs)
+        row = attrs.get("row")
+        seat = attrs.get("seat")
+        theatre_hall = attrs.get("performance").theatre_hall
+
+        if not (1 <= row <= theatre_hall.rows):
+            raise ValidationError(
+                {f"The row must be between 1 and {theatre_hall.rows}"}
+            )
+        if not (1 <= seat <= theatre_hall.seats_in_row):
+            raise ValidationError(
+                {f"The seat must be between 1 and {theatre_hall.seats_in_row}"}
+            )
+        return data
 
 
 class PerformanceDetailSerializer(PerformanceSerializer):
@@ -121,17 +131,19 @@ class PerformanceDetailSerializer(PerformanceSerializer):
 
 
 class ReservationSerializer(serializers.ModelSerializer):
+    tickets = TicketSerializer(read_only=False, many=True)
 
     class Meta:
         model = Reservation
         fields = ("id", "created_at", "user", "tickets")
+        read_only_fields = ("id", "created_at", "user")
 
     def create(self, validated_data):
         with transaction.atomic():
-            ticket_data = validated_data.pop("tickets")
+            tickets_data = validated_data.pop("tickets", [])
             reservation = Reservation.objects.create(**validated_data)
-            for ticket in ticket_data:
-                Ticket.objects.create(reservation=reservation, **ticket)
+            for ticket_data in tickets_data:
+                Ticket.objects.create(reservation=reservation, **ticket_data)
             return reservation
 
 

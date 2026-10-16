@@ -67,7 +67,7 @@ class Reservation(models.Model):
     )
 
     def __str__(self):
-        return f"{self.user.username} {self.created_at}"
+        return f"{self.user.email} {self.created_at}"
 
 
 class Ticket(models.Model):
@@ -83,6 +83,14 @@ class Ticket(models.Model):
         on_delete=models.CASCADE,
         related_name="tickets",
     )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["performance", "row", "seat"],
+                name="unique_performance",
+            )
+        ]
 
     def __str__(self):
         return f"{self.row} {self.seat} {self.performance}"

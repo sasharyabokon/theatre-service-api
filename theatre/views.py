@@ -3,7 +3,7 @@ from datetime import datetime
 from django.db.models import Count, F
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, OpenApiParameter
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, serializers
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
@@ -55,7 +55,12 @@ class PlayViewSet(viewsets.ModelViewSet):
     @staticmethod
     def _params_to_ints(qs):
         """Converts a list of string IDs to a list of integers"""
-        return [int(str_id) for str_id in qs.split(",")]
+        try:
+            return [int(str_id) for str_id in qs.split(",")]
+        except ValueError:
+            raise serializers.ValidationError(
+                "Parameters must be a comma-separated integers"
+            )
 
     def get_queryset(self):
         title = self.request.query_params.get("title")
@@ -150,11 +155,21 @@ class PerformanceViewSet(viewsets.ModelViewSet):
         queryset = self.queryset
 
         if date:
-            date = datetime.strptime(date, "%Y-%m-%d").date()
-            queryset = queryset.filter(show_time__date=date)
+            try:
+                date = datetime.strptime(date, "%Y-%m-%d").date()
+                queryset = queryset.filter(show_time__date=date)
+            except ValueError:
+                raise serializers.ValidationError(
+                    {"date": "Invalid date format. Use YYYY-MM-DD"}
+                )
 
         if play_id_str:
-            queryset = queryset.filter(play_id=int(play_id_str))
+            try:
+                queryset = queryset.filter(play_id=int(play_id_str))
+            except ValueError:
+                raise serializers.ValidationError(
+                    {"play: Play ID must be an integer"}
+                )
 
         return queryset
 
@@ -190,7 +205,13 @@ class ReservationViewSet(viewsets.ModelViewSet):
     serializer_class = ReservationSerializer
     permission_classes = (IsAuthenticated,)
 
+    def get_queryset(self):
+        return self.queryset.filter(user=self.request.user)
+
     def get_serializer_class(self):
         if self.action == "list":
             return ReservationListSerializer
         return ReservationSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
