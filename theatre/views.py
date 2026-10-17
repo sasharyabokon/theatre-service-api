@@ -168,7 +168,7 @@ class PerformanceViewSet(viewsets.ModelViewSet):
                 queryset = queryset.filter(play_id=int(play_id_str))
             except ValueError:
                 raise serializers.ValidationError(
-                    {"play: Play ID must be an integer"}
+                    {"play": "Play ID must be an integer."}
                 )
 
         return queryset

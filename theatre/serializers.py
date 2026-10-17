@@ -1,6 +1,5 @@
 from django.db import transaction
 from rest_framework import serializers
-from rest_framework.exceptions import ValidationError
 
 from theatre.models import (
     Actor,
@@ -106,12 +105,12 @@ class TicketSerializer(serializers.ModelSerializer):
         theatre_hall = attrs.get("performance").theatre_hall
 
         if not (1 <= row <= theatre_hall.rows):
-            raise ValidationError(
-                {f"The row must be between 1 and {theatre_hall.rows}"}
+            raise serializers.ValidationError(
+                {"row": f"The row must be between 1 and {theatre_hall.rows}"}
             )
         if not (1 <= seat <= theatre_hall.seats_in_row):
-            raise ValidationError(
-                {f"The seat must be between 1 and {theatre_hall.seats_in_row}"}
+            raise serializers.ValidationError(
+                {"seat": f"The seat must be between 1 and {theatre_hall.seats_in_row}"}
             )
         return data
 

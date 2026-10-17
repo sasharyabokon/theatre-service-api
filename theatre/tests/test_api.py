@@ -9,11 +9,20 @@ from django.urls import reverse
 from rest_framework.test import APIClient
 from rest_framework import status
 
-from theatre.models import Play, Performance, TheatreHall, Genre, Actor
+from theatre.models import (
+    Play,
+    Performance,
+    TheatreHall,
+    Genre,
+    Actor,
+    Reservation,
+    Ticket
+)
 from theatre.serializers import PlayListSerializer, PlayDetailSerializer
 
 PLAY_URL = reverse("theatre:play-list")
 PERFORMANCE_URL = reverse("theatre:performance-list")
+RESERVATION_URL = reverse("theatre:reservation-list")
 
 
 def sample_play(**params):
@@ -42,7 +51,6 @@ def sample_performance(**params):
 
 
 def image_upload_url(play_id):
-    """Return URL for play image upload"""
     return reverse("theatre:play-upload-image", args=[play_id])
 
 
@@ -237,7 +245,6 @@ class PlayImageUploadTests(TestCase):
             self.play.image.delete()
 
     def test_upload_image_to_play(self):
-        """Test uploading an image to play"""
         url = image_upload_url(self.play.id)
         with tempfile.NamedTemporaryFile(suffix=".jpg") as ntf:
             img = Image.new("RGB", (10, 10))
@@ -251,7 +258,6 @@ class PlayImageUploadTests(TestCase):
         self.assertTrue(os.path.exists(self.play.image.path))
 
     def test_upload_image_bad_request(self):
-        """Test uploading an invalid image"""
         url = image_upload_url(self.play.id)
         res = self.client.post(url, {"image": "not image"}, format="multipart")
 
@@ -289,3 +295,95 @@ class PlayImageUploadTests(TestCase):
         res = self.client.get(PERFORMANCE_URL)
 
         self.assertIn("play_image", res.data[0].keys())
+
+
+class ReservationAndValidationApiTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user = get_user_model().objects.create_user(
+            "user@test.com",
+            "testpass",
+        )
+        self.other_user = get_user_model().objects.create_user(
+            "other@test.com",
+            "testpass",
+        )
+        self.client.force_authenticate(self.user)
+
+        self.play = sample_play()
+        self.performance = sample_performance(play=self.play)
+
+    def test_create_reservation_with_tickets(self):
+        payload = {
+            "tickets": [
+                {"row": 1, "seat": 5, "performance": self.performance.id},
+                {"row": 1, "seat": 6, "performance": self.performance.id},
+            ]
+        }
+        res = self.client.post(RESERVATION_URL, payload, format="json")
+
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Reservation.objects.count(), 1)
+        self.assertEqual(Ticket.objects.count(), 2)
+
+        reservation = Reservation.objects.get(id=res.data["id"])
+        self.assertEqual(reservation.user, self.user)
+
+    def test_filter_reservations_by_current_user(self):
+        res1 = Reservation.objects.create(user=self.user)
+        Ticket.objects.create(
+            row=1, seat=1, performance=self.performance, reservation=res1
+        )
+
+        res2 = Reservation.objects.create(user=self.other_user)
+        Ticket.objects.create(
+            row=1, seat=2, performance=self.performance, reservation=res2
+        )
+
+        response = self.client.get(RESERVATION_URL)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["id"], res1.id)
+
+    def test_ticket_row_and_seat_validation(self):
+        payload = {
+            "tickets": [
+                {"row": 25, "seat": 5, "performance": self.performance.id},
+            ]
+        }
+        res = self.client.post(RESERVATION_URL, payload, format="json")
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("row", res.data["tickets"][0])
+
+        payload_seat = {
+            "tickets": [
+                {"row": 5, "seat": 30, "performance": self.performance.id},
+            ]
+        }
+        res_seat = self.client.post(RESERVATION_URL, payload_seat, format="json")
+        self.assertEqual(res_seat.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("seat", res_seat.data["tickets"][0])
+
+    def test_unique_ticket_constraint(self):
+        reservation = Reservation.objects.create(user=self.user)
+        Ticket.objects.create(
+            row=2, seat=2, performance=self.performance, reservation=reservation
+        )
+
+        payload = {
+            "tickets": [
+                {"row": 2, "seat": 2, "performance": self.performance.id},
+            ]
+        }
+        res = self.client.post(RESERVATION_URL, payload, format="json")
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_invalid_query_parameters_returns_400(self):
+        res_play = self.client.get(PERFORMANCE_URL, {"play": "abc"})
+        self.assertEqual(res_play.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("play", res_play.data)
+
+        res_date = self.client.get(PERFORMANCE_URL, {"date": "invalid-date"})
+        self.assertEqual(res_date.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("date", res_date.data)
